@@ -6,9 +6,9 @@
 #include <wchar.h>
 #include <new> // for std::nothrow?
 
-#include "Classes.h"
-#include "Utils.h"
-#include "Settings.h"
+#include "Classes/Classes.h"
+#include "Utils/Utils.h"
+#include "Settings/Settings.h"
 
 Settings set;
 static HANDLE hWorkerThread = nullptr; // thread handle
@@ -26,7 +26,12 @@ DWORD WINAPI WorkerThread(LPVOID)
 
     Sleep(time);
     Log(L"Worker: wakey wakey, cooking...");
-    uintptr_t FunctionRVA = set.GetFunctionRVA();
+    uintptr_t FunctionVA = set.ResolveFunctionAddress(); // attempt to find the function via sig or RVA
+
+    if (!FunctionVA) {
+        Log(L"\nABORTING!\n");
+        return NULL;
+    }
 
     std::vector<std::wstring> keys = set.GetContentKeys(); // try applying all keys
     for (int i = 0; i < keys.size(); i++) {
@@ -60,20 +65,9 @@ DWORD WINAPI WorkerThread(LPVOID)
 
         FString param(heapBuf, static_cast<int>(len)); // construct FString
 
-        uintptr_t ModuleBase = GetModuleBase(set.GetModuleName().c_str());
-        FuncType* func = (FuncType*) (ModuleBase + FunctionRVA); // convert to absolute addy --> ApplyEncryptionKeyFromString
-        if (!func || !ModuleBase || !FunctionRVA)
-        {
-            std::wstring err = L"Worker: ";
-            if (!func) err += L"Func pointer invalid; ";
-            if (!ModuleBase) err += L"ModuleBase invalid; ";
-            if (!FunctionRVA) err += L"FunctionRVA invalid; ";
-            Log(err.c_str());
-            delete[] heapBuf;
-            continue;
-        }
+        FuncType* func = (FuncType*) (FunctionVA); // convert to absolute addy --> ApplyEncryptionKeyFromString
 
-        swprintf_s(bufLog, L"Worker: calling decryption function at 0x%p", (void*)FunctionRVA);
+        swprintf_s(bufLog, L"Worker: calling decryption function at 0x%p", (void*)FunctionVA);
         Log(bufLog);
 
         bool callResult = false;
@@ -103,7 +97,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID)
     case DLL_PROCESS_ATTACH:
     {
         ClearLogFile();
-        Log(L"DLLMain: PROCESS_ATTACH");
+        Log(L"// Only specify the RVA or a Signature. Do not provide both\n\nDLLMain: PROCESS_ATTACH\n");
 
         DisableThreadLibraryCalls(hModule);
 

@@ -1,14 +1,17 @@
-#pragma once
+﻿#pragma once
 #include "pch.h"
-#include "Settings.h"
-#include "Utils.h"
 #include <sstream>
+#include "Settings.h"
+#include "Utils/Utils.h"
+#include "Pattern.h"
+using namespace PatternScanner;
 
 static constexpr size_t BUF_CHARS = 32768;
 
 void Settings::EnsureIniPath()
 {
-    if (!iniPath.empty()) return;
+    if (!iniPath.empty()) 
+        return;
 
     wchar_t exePath[MAX_PATH] = {};
     if (GetModuleFileNameW(nullptr, exePath, MAX_PATH))
@@ -16,11 +19,11 @@ void Settings::EnsureIniPath()
         wchar_t* last = wcsrchr(exePath, L'\\');
         if (last) *last = L'\0';
         iniPath = exePath;
-        iniPath += L"\\DecryptorSettings.ini";
+        iniPath += L"\\DecrypterSettings.ini";
     }
     else
     {
-        iniPath = L"DecryptorSettings.ini";
+        iniPath = L"DecrypterSettings.ini";
     }
 }
 
@@ -49,6 +52,9 @@ bool Settings::ValidateIni()
     if (!buf[0]) return false;
 
     GetPrivateProfileStringW(L"General", L"FunctionRVA", nullptr, buf, _countof(buf), iniPath.c_str());
+    if (!buf[0]) return false;
+
+    GetPrivateProfileStringW(L"General", L"Signature", nullptr, buf, _countof(buf), iniPath.c_str());
     if (!buf[0]) return false;
 
     GetPrivateProfileStringW(L"General", L"Timeout", nullptr, buf, _countof(buf), iniPath.c_str());
@@ -84,6 +90,7 @@ void Settings::CreateDefaultIni()
         L"[General]\r\n"
         L"ModuleName=unrealeditorfortnite-engine-win64-shipping.dll\r\n"
         L"FunctionRVA=0x0\r\n"
+        L"Signature=??\r\n"
         L"Timeout=10000\r\n"
         L"\r\n"
         L"[ContentKeys]\r\n"
@@ -100,7 +107,59 @@ void Settings::CreateDefaultIni()
         CloseHandle(h);
     }
 
-    Log(L"\nINI is corrupted! resetting...\n");
+    Log(L"\nINI is corrupted! resetting..\n");
+}
+
+uintptr_t Settings::ResolveFunctionAddress()
+{
+
+    uintptr_t ModuleBase = GetModuleBase(moduleName.c_str());
+    if (!ModuleBase)
+    {
+        Log(L"\nResolver: module doesn't exist!");
+        return 0;
+    }
+
+    wchar_t temp[256];
+    swprintf_s(temp, L"\nResolver: module '%s' loaded @ 0x%p", moduleName.c_str(), (void*)ModuleBase);
+    Log(temp);
+
+    bool hasRVA = (functionRVA != 0);
+    bool hasSig = (!signature.empty() && signature != "??");
+
+    if (hasRVA)
+    {
+        uintptr_t candidate = ModuleBase + functionRVA;
+
+        swprintf_s(temp, L"Resolver: trying RVA @ 0x%p", (void*)candidate);
+        Log(temp);
+
+        if (candidate > ModuleBase)
+        {
+            functionVA = candidate;
+            Log(L"Resolver: RVA valid → using RVA result");
+            return functionVA;
+        }
+
+        Log(L"Resolver: invalid RVA! attempting signature...");
+        return 0;
+    }
+
+    if (hasSig)
+    {
+        functionVA = FindPattern(moduleName, signature);
+        if (functionVA) {
+            swprintf_s(temp, L"Resolver: pattern found @ 0x%p", (void*)functionVA);
+            Log(temp);
+            return functionVA;
+        }
+
+        Log(L"Resolver ERROR: signature scan failed");
+        return 0;
+    }
+
+    Log(L"Resolver: failed to resolve VA!");
+    return 0;
 }
 
 bool Settings::Load()
@@ -138,6 +197,13 @@ bool Settings::Load()
             // keep default on parse failure
         }
     }
+
+    wchar_t sigBufW[1024] = {};
+    GetPrivateProfileStringW(L"General", L"Signature", L"", sigBufW, sizeof(sigBufW) / sizeof(wchar_t), iniPath.c_str());
+
+    std::wstring ws(sigBufW);
+    std::string sig(ws.begin(), ws.end());
+    signature = sig;
 
     wchar_t timeoutBuf[32] = {};
     GetPrivateProfileStringW(L"General", L"Timeout", nullptr, timeoutBuf, (UINT)_countof(timeoutBuf), iniPath.c_str());

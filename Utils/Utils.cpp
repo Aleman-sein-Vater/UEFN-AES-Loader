@@ -1,6 +1,6 @@
 #include "pch.h"
-#include "Utils.h"
-#include "Settings.h"
+#include "Utils/Utils.h"
+#include "Settings/Settings.h"
 
 uintptr_t GetModuleBase(const wchar_t* ModuleName)
 {

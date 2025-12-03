@@ -4,9 +4,9 @@
 #include <string>
 #include <vector>
 #include <cstdint>
-#include "Classes.h"
+#include "Classes/Classes.h"
 
-static constexpr const wchar_t* logFileName = L"Decryptor.log";
+static constexpr const wchar_t* logFileName = L"Decrypter.log";
 
 class Settings
 {
@@ -16,8 +16,7 @@ public:
     bool Load();
 
     const std::vector<std::wstring>& GetContentKeys() const { return ContentKeys; }
-    const std::wstring& GetModuleName() const { return moduleName; }
-    uintptr_t GetFunctionRVA() const { return functionRVA; }
+    uintptr_t ResolveFunctionAddress();
     unsigned long GetTimeout() const { return timeout; }
 
 private:
@@ -25,6 +24,8 @@ private:
     std::vector<std::wstring> ContentKeys;
     std::wstring moduleName = L"unrealeditorfortnite-engine-win64-shipping.dll";
     uintptr_t functionRVA = 0x0;
+    std::string signature = "";
+    uintptr_t functionVA = 0x0;
     unsigned long timeout = 10000; // sleep time
 
     void EnsureIniPath();

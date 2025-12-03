@@ -1,7 +1,7 @@
 #pragma once
 #include <Windows.h>
 #include <cstdint>
-#include "Classes.h"
+#include "Classes/Classes.h"
 
 uintptr_t GetModuleBase(const wchar_t* ModuleName);
 void ClearLogFile();
