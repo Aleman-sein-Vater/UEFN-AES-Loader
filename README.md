@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 ﻿# UEFN AES Loader
+=======
+# UEFN AES Loader
+>>>>>>> 55c0e0c2b1b368b73f7180d4e8c0d2afa660482a
 A UEFN DLL that calls the [ApplyEncryptionKeyFromString](https://github.com/EpicGames/UnrealEngine/blob/684b4c133ed87e8050d1fdaa287242f0fe2c1153/Engine/Source/Runtime/Experimental/IoStore/OnDemand/Private/OnDemandConfig.cpp#L65) function to load provided AES Keys
 
 ------------------------
@@ -53,4 +57,4 @@ A UEFN DLL that calls the [ApplyEncryptionKeyFromString](https://github.com/Epic
     - The surrounding instructions may differ between versions, but the highlighted CALL should still appear
 
 
-6. And you're done! Now just right-click on the function’s first instruction and copy the RVA (or generate a signature)
+6. And you're done! Now just right-click on the function's first instruction and copy the RVA (or generate a signature)
