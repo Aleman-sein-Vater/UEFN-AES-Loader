@@ -79,7 +79,7 @@ DWORD WINAPI WorkerThread(LPVOID)
         }
         else
         {
-            swprintf_s(bufLog, L"Worker: decryption function call returned = %d", callResult ? 1 : 0);
+            swprintf_s(bufLog, L"Worker: decryption function call returned = %s", callResult ? L"true" : L"false");
             Log(bufLog);
         }
 
@@ -108,6 +108,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID)
         }
 
         const auto& keys = set.GetContentKeys();
+        std::wstring msg = L"Fetched " + std::to_wstring(keys.size()) + L" Keys";
+        Log(msg.c_str());
         for (int i = 0; i < keys.size(); ++i)
         {
             std::wstring buf = L"Loaded Key " + std::to_wstring(i + 1) + L": " + keys[i];

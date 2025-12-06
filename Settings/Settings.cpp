@@ -48,16 +48,16 @@ bool Settings::ValidateIni()
 
     wchar_t buf[512] = {};
 
-    GetPrivateProfileStringW(L"General", L"ModuleName", nullptr, buf, _countof(buf), iniPath.c_str());
+    GetPrivateProfileStringW(L"Settings", L"ModuleName", nullptr, buf, _countof(buf), iniPath.c_str());
     if (!buf[0]) return false;
 
-    GetPrivateProfileStringW(L"General", L"FunctionRVA", nullptr, buf, _countof(buf), iniPath.c_str());
+    GetPrivateProfileStringW(L"Settings", L"FunctionRVA", nullptr, buf, _countof(buf), iniPath.c_str());
     if (!buf[0]) return false;
 
-    GetPrivateProfileStringW(L"General", L"Signature", nullptr, buf, _countof(buf), iniPath.c_str());
+    GetPrivateProfileStringW(L"Settings", L"Signature", nullptr, buf, _countof(buf), iniPath.c_str());
     if (!buf[0]) return false;
 
-    GetPrivateProfileStringW(L"General", L"Timeout", nullptr, buf, _countof(buf), iniPath.c_str());
+    GetPrivateProfileStringW(L"Settings", L"Timeout", nullptr, buf, _countof(buf), iniPath.c_str());
     if (!buf[0]) return false;
 
     // At least one ContentKey
@@ -175,11 +175,11 @@ bool Settings::Load()
     }
 
     wchar_t buff[512] = {};
-    GetPrivateProfileStringW(L"General", L"ModuleName", moduleName.c_str(), buff, (UINT)_countof(buff), iniPath.c_str());
+    GetPrivateProfileStringW(L"Settings", L"ModuleName", moduleName.c_str(), buff, (UINT)_countof(buff), iniPath.c_str());
     moduleName = buff[0] ? std::wstring(buff) : moduleName;
 
     wchar_t rvaBuf[64] = {};
-    GetPrivateProfileStringW(L"General", L"FunctionRVA", nullptr, rvaBuf, (UINT)_countof(rvaBuf), iniPath.c_str());
+    GetPrivateProfileStringW(L"Settings", L"FunctionRVA", nullptr, rvaBuf, (UINT)_countof(rvaBuf), iniPath.c_str());
     if (rvaBuf[0])
     {
         std::wstring s = rvaBuf;
@@ -199,14 +199,14 @@ bool Settings::Load()
     }
 
     wchar_t sigBufW[1024] = {};
-    GetPrivateProfileStringW(L"General", L"Signature", L"", sigBufW, sizeof(sigBufW) / sizeof(wchar_t), iniPath.c_str());
+    GetPrivateProfileStringW(L"Settings", L"Signature", L"", sigBufW, sizeof(sigBufW) / sizeof(wchar_t), iniPath.c_str());
 
     std::wstring ws(sigBufW);
     std::string sig(ws.begin(), ws.end());
     signature = sig;
 
     wchar_t timeoutBuf[32] = {};
-    GetPrivateProfileStringW(L"General", L"Timeout", nullptr, timeoutBuf, (UINT)_countof(timeoutBuf), iniPath.c_str());
+    GetPrivateProfileStringW(L"Settings", L"Timeout", nullptr, timeoutBuf, (UINT)_countof(timeoutBuf), iniPath.c_str());
     if (timeoutBuf[0])
     {
         try
