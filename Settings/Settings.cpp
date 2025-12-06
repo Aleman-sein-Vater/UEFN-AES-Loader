@@ -87,7 +87,7 @@ void Settings::CreateDefaultIni()
     EnsureIniPath();
 
     std::wstring defaultData =
-        L"[General]\r\n"
+        L"[Settings]\r\n"
         L"ModuleName=unrealeditorfortnite-engine-win64-shipping.dll\r\n"
         L"FunctionRVA=0x0\r\n"
         L"Signature=??\r\n"
