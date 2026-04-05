@@ -26,6 +26,16 @@ DWORD WINAPI WorkerThread(LPVOID)
 
     Sleep(time);
     Log(L"Worker: wakey wakey, cooking...");
+
+    std::vector<std::wstring> keys = set.GetContentKeys();
+    std::wstring msg = L"Fetched " + std::to_wstring(keys.size()) + L" Key(s)";
+    Log(msg.c_str());
+    for (int i = 0; i < keys.size(); ++i)
+    {
+        std::wstring buf = L"Loaded Key " + std::to_wstring(i + 1) + L": " + keys[i];
+        Log(buf.c_str());
+    }
+
     uintptr_t FunctionVA = set.ResolveFunctionAddress(); // attempt to find the function via sig or RVA
 
     if (!FunctionVA) {
@@ -33,7 +43,6 @@ DWORD WINAPI WorkerThread(LPVOID)
         return NULL;
     }
 
-    std::vector<std::wstring> keys = set.GetContentKeys(); // try applying all keys
     for (int i = 0; i < keys.size(); i++) {
 
         const wchar_t* ContentKey = keys[i].c_str();
@@ -45,7 +54,7 @@ DWORD WINAPI WorkerThread(LPVOID)
         heapBuf = new (std::nothrow) wchar_t[len]; // allocate buffer for FString content
         if (!heapBuf)
         {
-            Log(L"Worker: failed to allocate heap buffer!");
+            Log(L"Worker: failed to allocate heap buffer");
             continue;
         }
 
@@ -94,51 +103,47 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID)
 {
     switch (reason)
     {
-    case DLL_PROCESS_ATTACH:
-    {
-        ClearLogFile();
-        Log(L"// Only specify the RVA or a Signature. Do not provide both\n\nDLLMain: PROCESS_ATTACH\n");
-
-        DisableThreadLibraryCalls(hModule);
-
-        if (!set.Load())
+        case DLL_PROCESS_ATTACH:
         {
-            Log(L"\nABORTING!\n");
-            return FALSE;
-        }
+            ClearLogFile();
+            Log(L"// Only specify the RVA or a Signature. Do not provide both\n\nDLLMain: PROCESS_ATTACH\n");
 
-        const auto& keys = set.GetContentKeys();
-        std::wstring msg = L"Fetched " + std::to_wstring(keys.size()) + L" Keys";
-        Log(msg.c_str());
-        for (int i = 0; i < keys.size(); ++i)
-        {
-            std::wstring buf = L"Loaded Key " + std::to_wstring(i + 1) + L": " + keys[i];
-            Log(buf.c_str());
-        }
+            DisableThreadLibraryCalls(hModule); // TLS Callback
 
-        hWorkerThread = CreateThread(nullptr, 0, WorkerThread, nullptr, 0, nullptr);
-        if (hWorkerThread)
-        {
-            Log(L"DLLMain: Worker thread created");
-        }
-        else
-        {
-            Log(L"DLLMain: Failed to create worker thread!");
-        }
-        break;
-    }
+            hWorkerThread = CreateThread(nullptr, 0, [](LPVOID lpParam) -> DWORD
+                {
+                    Sleep(100); // gives DLLMAIN time to finsh
 
-    case DLL_PROCESS_DETACH:
-    {
-        Log(L"DLLMain: PROCESS_DETACH");
-        if (hWorkerThread)
-        {
-            WaitForSingleObject(hWorkerThread, 5000);
-            CloseHandle(hWorkerThread);
-            hWorkerThread = nullptr;
+                    if (!set.Load())
+                    {
+                        Log(L"\nABORTING: Settings failed to load!\n");
+                        return 0;
+                    }
+
+                    return WorkerThread(lpParam);
+                }, nullptr, 0, nullptr);
+
+            if (hWorkerThread)
+            {
+                Log(L"DLLMain: Worker thread created");
+            }
+            else
+            {
+                Log(L"DLLMain: Failed to create worker thread");
+            }
+            break;
         }
-        break;
-    }
+        case DLL_PROCESS_DETACH:
+        {
+            Log(L"DLLMain: PROCESS_DETACH");
+            if (hWorkerThread)
+            {
+                WaitForSingleObject(hWorkerThread, 2000);
+                CloseHandle(hWorkerThread);
+                hWorkerThread = nullptr;
+            }
+            break;
+        }
     }
     return TRUE;
 }

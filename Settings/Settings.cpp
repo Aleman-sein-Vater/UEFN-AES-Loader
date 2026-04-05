@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "pch.h"
 #include <sstream>
+#include <algorithm>
 #include "Settings.h"
 #include "Utils/Utils.h"
 #include "Pattern.h"
@@ -107,7 +108,7 @@ void Settings::CreateDefaultIni()
         CloseHandle(h);
     }
 
-    Log(L"\nINI is corrupted! resetting..\n");
+    Log(L"\nINI is corrupted! applying defaults..\n");
 }
 
 uintptr_t Settings::ResolveFunctionAddress()
@@ -116,7 +117,7 @@ uintptr_t Settings::ResolveFunctionAddress()
     uintptr_t ModuleBase = GetModuleBase(moduleName.c_str());
     if (!ModuleBase)
     {
-        Log(L"\nResolver: module doesn't exist!");
+        Log((L"\nResolver: module \"" + moduleName + L"\"doesn't exist").c_str());
         return 0;
     }
 
@@ -141,7 +142,7 @@ uintptr_t Settings::ResolveFunctionAddress()
             return functionVA;
         }
 
-        Log(L"Resolver: invalid RVA! attempting signature...");
+        Log(L"Resolver: invalid RVA");
         return 0;
     }
 
@@ -154,11 +155,11 @@ uintptr_t Settings::ResolveFunctionAddress()
             return functionVA;
         }
 
-        Log(L"Resolver ERROR: signature scan failed");
+        Log(L"Resolver: signature scan failed");
         return 0;
     }
 
-    Log(L"Resolver: failed to resolve VA!");
+    Log(L"Resolver: failed to resolve VA, provide RVA or Signature");
     return 0;
 }
 
@@ -186,8 +187,7 @@ bool Settings::Load()
         try
         {
             size_t idx = 0;
-            // strip "0x"
-            if (s.rfind(L"0x", 0) == 0 || s.rfind(L"0X", 0) == 0)
+            if (s.rfind(L"0x", 0) == 0 || s.rfind(L"0X", 0) == 0) // strip "0x"
                 functionRVA = static_cast<uintptr_t>(std::stoull(s.substr(2), &idx, 16));
             else
                 functionRVA = static_cast<uintptr_t>(std::stoull(s, &idx, 0));
@@ -227,16 +227,37 @@ bool Settings::Load()
         wchar_t* p = sectionBuf.data();
         while (*p)
         {
-            std::wstring line = p; // "KeyN=value"
             wchar_t* eq = wcschr(p, L'=');
             if (eq)
             {
-                std::wstring value = eq + 1;
-                if (!value.empty())
-                    ContentKeys.push_back(value);
-            }
-            p += wcslen(p) + 1; // move past this null-terminated entry
+                std::wstring GuidKeyPair = eq + 1; // move past the = and read until '\0'
+                auto pos = GuidKeyPair.find(L':');
+                if (pos == std::wstring::npos) {
+                    Log((L"ContentKey: Wrong format on \"" + GuidKeyPair + L"\"").c_str());
+                    p += wcslen(p) + 1;
+                    continue;
+                }
+                std::wstring Guid = GuidKeyPair.substr(0, pos);  // Before ':'
+                std::wstring Key  = GuidKeyPair.substr(pos + 1); // after ':'
+                if (!Guid.empty()) {
+                    Guid.erase(                                  // removes '-' from the GUID
+                        std::remove(
+                            Guid.begin(),
+                            Guid.end(),
+                            L'-'
+                        ),
+                        Guid.end()
+                    );
+                    std::transform(Guid.begin(), Guid.end(), Guid.begin(), ::towupper); // uppercase the GUID: 4f322681-e6f3-4d13-bf74-bf3244b27787 --> 4F322681E6F34D13BF74BF3244B27787
+                }
+                else
+                    Log((L"ContentKey: Guid in \"" + GuidKeyPair + L"\" is empty").c_str());
 
+                Key = TryHexToBase64(Key); // attempts to convert HEX AES to Base64, if already Base64 it will be untouched
+                GuidKeyPair = Guid + L":" + Key;
+                ContentKeys.push_back(GuidKeyPair);
+            }
+            p += wcslen(p) + 1; // move past this null-terminated line
         }
     }
     return true;
