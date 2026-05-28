@@ -6,7 +6,7 @@
 #include <cstdint>
 #include "Classes/Classes.h"
 
-static constexpr const wchar_t* logFileName = L"Decrypter.log";
+static constexpr const char* logFileName = "Decrypter.log";
 
 class Settings
 {
@@ -15,14 +15,14 @@ public:
 
     bool Load();
 
-    const std::vector<std::wstring>& GetContentKeys() const { return ContentKeys; }
+    const std::vector<std::string>& GetContentKeys() const { return ContentKeys; }
     uintptr_t ResolveFunctionAddress();
     unsigned long GetTimeout() const { return timeout; }
 
 private:
-    std::wstring iniPath;
-    std::vector<std::wstring> ContentKeys;
-    std::wstring moduleName = L"unrealeditorfortnite-engine-win64-shipping.dll";
+    std::string iniPath;
+    std::vector<std::string> ContentKeys;
+    std::string moduleName = "unrealeditorfortnite-engine-win64-shipping.dll";
     uintptr_t functionRVA = 0x0;
     std::string signature = "";
     uintptr_t functionVA = 0x0;

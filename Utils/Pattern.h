@@ -47,20 +47,20 @@ namespace PatternScanner
         return bytes;
     }
 
-    inline uintptr_t GetModuleBase(const std::wstring& moduleName)
+    inline uintptr_t GetModuleBase(const std::string& moduleName)
     {
-        return (uintptr_t)GetModuleHandleW(moduleName.c_str());
+        return (uintptr_t)GetModuleHandleA(moduleName.c_str());
     }
 
-    inline size_t GetModuleSize(const std::wstring& moduleName)
+    inline size_t GetModuleSize(const std::string& moduleName)
     {
-        auto base = (PBYTE)GetModuleHandleW(moduleName.c_str());
+        auto base = (PBYTE)GetModuleHandleA(moduleName.c_str());
         auto nt = (PIMAGE_NT_HEADERS)(base + ((PIMAGE_DOS_HEADER)base)->e_lfanew);
         return nt->OptionalHeader.SizeOfImage;
     }
 
     template <typename T = uintptr_t>
-    T FindPattern(const std::wstring& moduleName, const std::string& pattern)
+    T FindPattern(const std::string& moduleName, const std::string& pattern)
     {
         uintptr_t base = GetModuleBase(moduleName);
         size_t size = GetModuleSize(moduleName);

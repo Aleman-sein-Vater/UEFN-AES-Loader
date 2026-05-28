@@ -15,68 +15,69 @@ static HANDLE hWorkerThread = nullptr; // thread handle
 
 DWORD WINAPI WorkerThread(LPVOID)
 {
-    Log(L"Worker: started");
+    Log("Worker: started");
 
     unsigned long time = set.GetTimeout();
     double seconds = static_cast<double>(time) / 1000.0;
-    std::wstringstream wss;
+    std::stringstream wss;
     wss.precision(2);
-    wss << std::fixed << L"Worker: sleeping " << seconds << L"s.";
+    wss << std::fixed << "Worker: sleeping " << seconds << "s.";
     Log(wss.str().c_str());
 
     Sleep(time);
-    Log(L"Worker: wakey wakey, cooking...");
+    Log("Worker: wakey wakey, cooking...");
 
-    std::vector<std::wstring> keys = set.GetContentKeys();
-    std::wstring msg = L"Fetched " + std::to_wstring(keys.size()) + L" Key(s)";
+    auto &keys = set.GetContentKeys();
+    std::string msg = "Fetched " + std::to_string(keys.size()) + " Key(s)";
     Log(msg.c_str());
     for (int i = 0; i < keys.size(); ++i)
     {
-        std::wstring buf = L"Loaded Key " + std::to_wstring(i + 1) + L": " + keys[i];
+        std::string buf = "Loaded Key " + std::to_string(i + 1) + ": " + keys[i];
         Log(buf.c_str());
     }
 
     uintptr_t FunctionVA = set.ResolveFunctionAddress(); // attempt to find the function via sig or RVA
 
     if (!FunctionVA) {
-        Log(L"\nABORTING!\n");
+        Log("\nABORTING!\n");
         return NULL;
     }
 
     for (int i = 0; i < keys.size(); i++) {
 
-        const wchar_t* ContentKey = keys[i].c_str();
+        const char* ContentKey = keys[i].c_str();
 
-        size_t len = wcslen(ContentKey) + 1; // +1 for null terminator
+        std::wstring WideKey = text_widen(keys[i]);
+
+        size_t len = WideKey.size() + 1; // +1 for null terminator
         wchar_t* heapBuf = nullptr;
-        wchar_t bufLog[256];
+        char bufLog[256] = {};
 
         heapBuf = new (std::nothrow) wchar_t[len]; // allocate buffer for FString content
         if (!heapBuf)
         {
-            Log(L"Worker: failed to allocate heap buffer");
+            Log("Worker: failed to allocate heap buffer");
             continue;
         }
 
-        wcscpy_s(heapBuf, len, ContentKey); // write ContentKey into buffer
+        wcscpy_s(heapBuf, len, WideKey.c_str()); // write ContentKey into buffer
 
-        std::wstringstream wstream;
-        wstream << "\nRaw Buffer Bytes " << i + 1 << ": ";
-        for (int i = 0; i < len; i++)
+        std::stringstream sstream;
+        sstream << "\nRaw Buffer Bytes " << i + 1 << ": ";
+        for (size_t j = 0; j < WideKey.size(); j++)
         {   // log the bytes of the allocated buffer
-            wstream << std::uppercase << std::setfill(L'0') << std::setw(2) << std::hex << static_cast<unsigned int>(heapBuf[i]);
-            if (i + 1 < len)
-                wstream << L' ';
+            sstream << std::uppercase << std::setfill('0') << std::setw(2) << std::hex << static_cast<unsigned int>(heapBuf[j]);
+            if (j + 1 < len)
+                sstream << ' ';
         }
-        wstream << std::endl;
-        std::wstring wresult = wstream.str();
-        Log(wresult.c_str());
+        sstream << std::endl;
+        Log(sstream.str().c_str());
 
-        FString param(heapBuf, static_cast<int>(len)); // construct FString
+        FString param(heapBuf, static_cast<int>(len - 1)); // construct FString
 
-        FuncType* func = (FuncType*) (FunctionVA); // convert to absolute addy --> ApplyEncryptionKeyFromString
+        FuncType* func = (FuncType*) (FunctionVA); // convert to absolute addy --> ApplyEncryptionKeyFromString's Signature
 
-        swprintf_s(bufLog, L"Worker: calling decryption function at 0x%p", (void*)FunctionVA);
+        sprintf_s(bufLog, "Worker: calling decryption function at 0x%p", (void*)FunctionVA);
         Log(bufLog);
 
         bool callResult = false;
@@ -84,18 +85,18 @@ DWORD WINAPI WorkerThread(LPVOID)
 
         if (!ok)
         {
-            Log(L"Worker: exception during decryption function call! (check RVA & ModuleName)"); // Corrupted FString?
+            Log("Worker: exception during decryption function call! (check RVA & ModuleName)"); // Corrupted FString?
         }
         else
         {
-            swprintf_s(bufLog, L"Worker: decryption function call returned = %s", callResult ? L"true" : L"false");
+            sprintf_s(bufLog, "Worker: decryption function call returned = %s", callResult ? "true" : "false");
             Log(bufLog);
         }
 
         delete[] heapBuf;
     }
 
-    Log(L"Worker: exiting...");
+    Log("Worker: exiting...");
     return 0;
 }
 
@@ -106,7 +107,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID)
         case DLL_PROCESS_ATTACH:
         {
             ClearLogFile();
-            Log(L"// Only specify the RVA or a Signature. Do not provide both\n\nDLLMain: PROCESS_ATTACH\n");
+            Log("// Only specify the RVA or a Signature. Do not provide both\n\nDLLMain: PROCESS_ATTACH\n");
 
             DisableThreadLibraryCalls(hModule); // TLS Callback
 
@@ -116,7 +117,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID)
 
                     if (!set.Load())
                     {
-                        Log(L"\nABORTING: Settings failed to load!\n");
+                        Log("\nABORTING: Settings failed to load!\n");
                         return 0;
                     }
 
@@ -125,17 +126,17 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID)
 
             if (hWorkerThread)
             {
-                Log(L"DLLMain: Worker thread created");
+                Log("DLLMain: Worker thread created");
             }
             else
             {
-                Log(L"DLLMain: Failed to create worker thread");
+                Log("DLLMain: Failed to create worker thread");
             }
             break;
         }
         case DLL_PROCESS_DETACH:
         {
-            Log(L"DLLMain: PROCESS_DETACH");
+            Log("DLLMain: PROCESS_DETACH");
             if (hWorkerThread)
             {
                 WaitForSingleObject(hWorkerThread, 2000);

@@ -14,17 +14,17 @@ void Settings::EnsureIniPath()
     if (!iniPath.empty()) 
         return;
 
-    wchar_t exePath[MAX_PATH] = {};
-    if (GetModuleFileNameW(nullptr, exePath, MAX_PATH))
+    char exePath[MAX_PATH] = {};
+    if (GetModuleFileNameA(nullptr, exePath, MAX_PATH))
     {
-        wchar_t* last = wcsrchr(exePath, L'\\');
-        if (last) *last = L'\0';
+        char* last = strrchr(exePath, '\\');
+        if (last) *last = '\0';
         iniPath = exePath;
-        iniPath += L"\\DecrypterSettings.ini";
+        iniPath += "\\DecrypterSettings.ini";
     }
     else
     {
-        iniPath = L"DecrypterSettings.ini";
+        iniPath = "DecrypterSettings.ini";
     }
 }
 
@@ -32,11 +32,11 @@ bool Settings::ValidateIni()
 {
     EnsureIniPath();
 
-    DWORD attr = GetFileAttributesW(iniPath.c_str());
+    DWORD attr = GetFileAttributesA(iniPath.c_str());
     if (attr == INVALID_FILE_ATTRIBUTES)
         return false;
 
-    HANDLE hFile = CreateFileW(iniPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE hFile = CreateFileA(iniPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (hFile == INVALID_HANDLE_VALUE) return false;
 
     LARGE_INTEGER size;
@@ -47,36 +47,36 @@ bool Settings::ValidateIni()
     }
     CloseHandle(hFile);
 
-    wchar_t buf[512] = {};
+    char buf[512] = {};
 
-    GetPrivateProfileStringW(L"Settings", L"ModuleName", nullptr, buf, _countof(buf), iniPath.c_str());
+    GetPrivateProfileStringA("Settings", "ModuleName", nullptr, buf, _countof(buf), iniPath.c_str());
     if (!buf[0]) return false;
 
-    GetPrivateProfileStringW(L"Settings", L"FunctionRVA", nullptr, buf, _countof(buf), iniPath.c_str());
+    GetPrivateProfileStringA("Settings", "FunctionRVA", nullptr, buf, _countof(buf), iniPath.c_str());
     if (!buf[0]) return false;
 
-    GetPrivateProfileStringW(L"Settings", L"Signature", nullptr, buf, _countof(buf), iniPath.c_str());
+    GetPrivateProfileStringA("Settings", "Signature", nullptr, buf, _countof(buf), iniPath.c_str());
     if (!buf[0]) return false;
 
-    GetPrivateProfileStringW(L"Settings", L"Timeout", nullptr, buf, _countof(buf), iniPath.c_str());
+    GetPrivateProfileStringA("Settings", "Timeout", nullptr, buf, _countof(buf), iniPath.c_str());
     if (!buf[0]) return false;
 
     // At least one ContentKey
-    std::vector<wchar_t> sectionBuf(BUF_CHARS);
-    DWORD read = GetPrivateProfileSectionW(L"ContentKeys", sectionBuf.data(), (DWORD)sectionBuf.size(), iniPath.c_str());
+    std::vector<char> sectionBuf(BUF_CHARS);
+    DWORD read = GetPrivateProfileSectionA("ContentKeys", sectionBuf.data(), (DWORD)sectionBuf.size(), iniPath.c_str());
     if (read == 0) return false;
 
-    wchar_t* p = sectionBuf.data();
+    char* p = sectionBuf.data();
     bool hasKey = false;
     while (*p)
     {
-        wchar_t* eq = wcschr(p, L'=');
+        char* eq = strchr(p, '=');
         if (eq && *(eq + 1)) // key has a value
         {
             hasKey = true;
             break;
         }
-        p += wcslen(p) + 1;
+        p += strlen(p) + 1;
     }
     if (!hasKey) return false;
 
@@ -87,28 +87,26 @@ void Settings::CreateDefaultIni()
 {
     EnsureIniPath();
 
-    std::wstring defaultData =
-        L"[Settings]\r\n"
-        L"ModuleName=unrealeditorfortnite-engine-win64-shipping.dll\r\n"
-        L"FunctionRVA=0x0\r\n"
-        L"Signature=??\r\n"
-        L"Timeout=10000\r\n"
-        L"\r\n"
-        L"[ContentKeys]\r\n"
-        L"Key1=AAAAAAAABBBBBBBBCCCCCCCCDDDDDDDD:A0HGfiKr7aVb5nv5c6lKtKPev3uZmcHqZzCNEkfyYr0=\r\n"
-        L"Key2=AAAAAAAABBBBBBBBCCCCCCCCDDDDDDDD:BsnaYzjKolC4Ynb1zhYTZZTNLMIQ97SsbAoakGi0mmE=\r\n";
+    std::string defaultData =
+        "[Settings]\r\n"
+        "ModuleName=unrealeditorfortnite-engine-win64-shipping.dll\r\n"
+        "FunctionRVA=0x0\r\n"
+        "Signature=??\r\n"          // Working Signature (28th May 2026): 48 89 ?? ?? ?? 48 89 ?? ?? ?? 48 89 ?? ?? ?? 55 41 56 41 57 48 8D 6C 24 ?? 48 81 EC ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 45 ?? 33 DB 48 89 5D ?? 48 89 5D ?? 0F ?? ??
+        "Timeout=10000\r\n"
+        "\r\n"
+        "[ContentKeys]\r\n"
+        "ExampleKey0=GUID:AES\r\n"
+        "ExampleKey1=09CA2179883D4F55B8A296A6C149BF7A:A0HGfiKr7aVb5nv5c6lKtKPev3uZmcHqZzCNEkfyYr0=\r\n"
+        "ExampleKey2=31aa3066-bfb9-44ff-a4c4-c1779bd11727:0x5E3B03D5A775FE495B2F75479D3610408DA7975DA2CCD1A4917136757C39E2FB";
 
-    HANDLE h = CreateFileW(iniPath.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE h = CreateFileA(iniPath.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (h != INVALID_HANDLE_VALUE)
     {
-        DWORD written = 0;
-        WORD bom = 0xFEFF; // Write Byte-Order-Mark
-        WriteFile(h, &bom, sizeof(bom), &written, nullptr);
-        WriteFile(h, defaultData.c_str(), static_cast<DWORD>(defaultData.size() * sizeof(wchar_t)), &written, nullptr);
+        WriteFile(h, defaultData.c_str(), static_cast<DWORD>(defaultData.size()), nullptr, nullptr);
         CloseHandle(h);
     }
 
-    Log(L"\nINI is corrupted! applying defaults..\n");
+    Log("\nINI is corrupted! applying defaults..\n");
 }
 
 uintptr_t Settings::ResolveFunctionAddress()
@@ -117,32 +115,32 @@ uintptr_t Settings::ResolveFunctionAddress()
     uintptr_t ModuleBase = GetModuleBase(moduleName.c_str());
     if (!ModuleBase)
     {
-        Log((L"\nResolver: module \"" + moduleName + L"\"doesn't exist").c_str());
+        Log(("\nResolver: module \"" + moduleName + "\"doesn't exist").c_str());
         return 0;
     }
 
-    wchar_t temp[256];
-    swprintf_s(temp, L"\nResolver: module '%s' loaded @ 0x%p", moduleName.c_str(), (void*)ModuleBase);
+    char temp[256];
+    sprintf_s(temp, "\nResolver: module '%s' loaded @ 0x%p", moduleName.c_str(), (void*)ModuleBase);
     Log(temp);
 
     bool hasRVA = (functionRVA != 0);
-    bool hasSig = (!signature.empty() && signature != "??");
+    bool hasSig = (!signature.empty() && signature != "??"); // default / null values
 
     if (hasRVA)
     {
         uintptr_t candidate = ModuleBase + functionRVA;
 
-        swprintf_s(temp, L"Resolver: trying RVA @ 0x%p", (void*)candidate);
+        sprintf_s(temp, "Resolver: trying RVA @ 0x%p", (void*)candidate);
         Log(temp);
 
         if (candidate > ModuleBase)
         {
             functionVA = candidate;
-            Log(L"Resolver: RVA valid → using RVA result");
+            Log("Resolver: RVA valid -> using RVA result");
             return functionVA;
         }
 
-        Log(L"Resolver: invalid RVA");
+        Log("Resolver: invalid RVA");
         return 0;
     }
 
@@ -150,16 +148,16 @@ uintptr_t Settings::ResolveFunctionAddress()
     {
         functionVA = FindPattern(moduleName, signature);
         if (functionVA) {
-            swprintf_s(temp, L"Resolver: pattern found @ 0x%p", (void*)functionVA);
+            sprintf_s(temp, "Resolver: pattern found @ 0x%p", (void*)functionVA);
             Log(temp);
             return functionVA;
         }
 
-        Log(L"Resolver: signature scan failed");
+        Log("Resolver: signature scan failed");
         return 0;
     }
 
-    Log(L"Resolver: failed to resolve VA, provide RVA or Signature");
+    Log("Resolver: failed to resolve VA, provide RVA or Signature");
     return 0;
 }
 
@@ -168,26 +166,26 @@ bool Settings::Load()
     EnsureIniPath();
 
     // if ini missing, create default
-    DWORD attr = GetFileAttributesW(iniPath.c_str());
+    DWORD attr = GetFileAttributesA(iniPath.c_str());
     if (attr == INVALID_FILE_ATTRIBUTES || !ValidateIni())
     {
         CreateDefaultIni();
         return false;
     }
 
-    wchar_t buff[512] = {};
-    GetPrivateProfileStringW(L"Settings", L"ModuleName", moduleName.c_str(), buff, (UINT)_countof(buff), iniPath.c_str());
-    moduleName = buff[0] ? std::wstring(buff) : moduleName;
+    char modBuf[512] = {};
+    GetPrivateProfileStringA("Settings", "ModuleName", moduleName.c_str(), modBuf, (UINT)_countof(modBuf), iniPath.c_str());
+    moduleName = modBuf[0] ? std::string(modBuf) : moduleName;
 
-    wchar_t rvaBuf[64] = {};
-    GetPrivateProfileStringW(L"Settings", L"FunctionRVA", nullptr, rvaBuf, (UINT)_countof(rvaBuf), iniPath.c_str());
+    char rvaBuf[64] = {};
+    GetPrivateProfileStringA("Settings", "FunctionRVA", nullptr, rvaBuf, (UINT)_countof(rvaBuf), iniPath.c_str());
     if (rvaBuf[0])
     {
-        std::wstring s = rvaBuf;
+        std::string s = rvaBuf;
         try
         {
             size_t idx = 0;
-            if (s.rfind(L"0x", 0) == 0 || s.rfind(L"0X", 0) == 0) // strip "0x"
+            if (s.rfind("0x", 0) == 0 || s.rfind("0X", 0) == 0) // strip "0x"
                 functionRVA = static_cast<uintptr_t>(std::stoull(s.substr(2), &idx, 16));
             else
                 functionRVA = static_cast<uintptr_t>(std::stoull(s, &idx, 0));
@@ -198,15 +196,13 @@ bool Settings::Load()
         }
     }
 
-    wchar_t sigBufW[1024] = {};
-    GetPrivateProfileStringW(L"Settings", L"Signature", L"", sigBufW, sizeof(sigBufW) / sizeof(wchar_t), iniPath.c_str());
+    char sigBuf[1024] = {};
+    GetPrivateProfileStringA("Settings", "Signature", "", sigBuf, sizeof(sigBuf) / sizeof(char), iniPath.c_str());
 
-    std::wstring ws(sigBufW);
-    std::string sig(ws.begin(), ws.end());
-    signature = sig;
+    signature = sigBuf;
 
-    wchar_t timeoutBuf[32] = {};
-    GetPrivateProfileStringW(L"Settings", L"Timeout", nullptr, timeoutBuf, (UINT)_countof(timeoutBuf), iniPath.c_str());
+    char timeoutBuf[32] = {};
+    GetPrivateProfileStringA("Settings", "Timeout", nullptr, timeoutBuf, (UINT)_countof(timeoutBuf), iniPath.c_str());
     if (timeoutBuf[0])
     {
         try
@@ -219,26 +215,26 @@ bool Settings::Load()
         }
     }
 
-    std::vector<wchar_t> sectionBuf(BUF_CHARS);
-    DWORD read = GetPrivateProfileSectionW(L"ContentKeys", sectionBuf.data(), (DWORD)sectionBuf.size(), iniPath.c_str());
+    std::vector<char> sectionBuf(BUF_CHARS);
+    DWORD read = GetPrivateProfileSectionA("ContentKeys", sectionBuf.data(), (DWORD)sectionBuf.size(), iniPath.c_str());
     ContentKeys.clear();
     if (read > 0)
     {
-        wchar_t* p = sectionBuf.data();
+        char* p = sectionBuf.data();
         while (*p)
         {
-            wchar_t* eq = wcschr(p, L'=');
+            char* eq = strchr(p, '=');
             if (eq)
             {
-                std::wstring GuidKeyPair = eq + 1; // move past the = and read until '\0'
+                std::string GuidKeyPair = eq + 1; // move past the = and read until '\0'
                 auto pos = GuidKeyPair.find(L':');
-                if (pos == std::wstring::npos) {
-                    Log((L"ContentKey: Wrong format on \"" + GuidKeyPair + L"\"").c_str());
-                    p += wcslen(p) + 1;
+                if (pos == std::string::npos) {
+                    Log(("ContentKey: Wrong format on \"" + GuidKeyPair + "\"").c_str());
+                    p += strlen(p) + 1;
                     continue;
                 }
-                std::wstring Guid = GuidKeyPair.substr(0, pos);  // Before ':'
-                std::wstring Key  = GuidKeyPair.substr(pos + 1); // after ':'
+                std::string Guid = GuidKeyPair.substr(0, pos);  // Before ':'
+                std::string Key  = GuidKeyPair.substr(pos + 1); // after ':'
                 if (!Guid.empty()) {
                     Guid.erase(                                  // removes '-' from the GUID
                         std::remove(
@@ -251,13 +247,13 @@ bool Settings::Load()
                     std::transform(Guid.begin(), Guid.end(), Guid.begin(), ::towupper); // uppercase the GUID: 4f322681-e6f3-4d13-bf74-bf3244b27787 --> 4F322681E6F34D13BF74BF3244B27787
                 }
                 else
-                    Log((L"ContentKey: Guid in \"" + GuidKeyPair + L"\" is empty").c_str());
+                    Log(("ContentKey: Guid in \"" + GuidKeyPair + "\" is empty").c_str());
 
                 Key = TryHexToBase64(Key); // attempts to convert HEX AES to Base64, if already Base64 it will be untouched
-                GuidKeyPair = Guid + L":" + Key;
+                GuidKeyPair = Guid + ":" + Key;
                 ContentKeys.push_back(GuidKeyPair);
             }
-            p += wcslen(p) + 1; // move past this null-terminated line
+            p += strlen(p) + 1; // move past this null-terminated line
         }
     }
     return true;
