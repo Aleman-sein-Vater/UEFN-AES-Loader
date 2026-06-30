@@ -91,7 +91,7 @@ void Settings::CreateDefaultIni()
         "[Settings]\r\n"
         "ModuleName=unrealeditorfortnite-engine-win64-shipping.dll\r\n"
         "FunctionRVA=0x0\r\n"
-        "Signature=??\r\n"          // Working Signature (28th May 2026): 48 89 ?? ?? ?? 48 89 ?? ?? ?? 48 89 ?? ?? ?? 55 41 56 41 57 48 8D 6C 24 ?? 48 81 EC ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 45 ?? 33 DB 48 89 5D ?? 48 89 5D ?? 0F ?? ??
+        "Signature=??\r\n"          // Working Signature (30th June 2026 - 41.10): 48 89 ?? ?? ?? 48 89 ?? ?? ?? 55 57 41 56 48 8D ?? ?? ?? 48 81 ?? ?? ?? ?? ?? 48 8B ?? ?? ?? ?? ?? 48 33 ?? 48 89 ?? ?? 45 33 ?? 4C 89 ?? ?? 4C 89 ?? ?? 0F 57 ?? 0F 11 ?? ?? 0F 11 ?? ?? ---- (Old Signature - Pre 41.00: 48 89 ?? ?? ?? 48 89 ?? ?? ?? 48 89 ?? ?? ?? 55 41 56 41 57 48 8D 6C 24 ?? 48 81 EC ?? ?? ?? ?? 48 8B 05 ?? ?? ?? ?? 48 33 C4 48 89 45 ?? 33 DB 48 89 5D ?? 48 89 5D ?? 0F ?? ??)
         "Timeout=10000\r\n"
         "\r\n"
         "[ContentKeys]\r\n"
@@ -244,7 +244,7 @@ bool Settings::Load()
                         ),
                         Guid.end()
                     );
-                    std::transform(Guid.begin(), Guid.end(), Guid.begin(), ::towupper); // uppercase the GUID: 4f322681-e6f3-4d13-bf74-bf3244b27787 --> 4F322681E6F34D13BF74BF3244B27787
+                    std::transform(Guid.begin(), Guid.end(), Guid.begin(), ::toupper); // uppercase the GUID: 4f322681-e6f3-4d13-bf74-bf3244b27787 --> 4F322681E6F34D13BF74BF3244B27787
                 }
                 else
                     Log(("ContentKey: Guid in \"" + GuidKeyPair + "\" is empty").c_str());

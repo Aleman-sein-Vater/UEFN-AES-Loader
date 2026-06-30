@@ -27,7 +27,7 @@ void ClearLogFile()
         CloseHandle(hFile);
 }
 
-void Log(const char* msg) // ..don't ask me why i decided to make this wide
+void Log(const char* msg)
 {
     HANDLE hFile = CreateFileA(logFileName, FILE_APPEND_DATA, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (hFile == INVALID_HANDLE_VALUE) return;
@@ -66,12 +66,6 @@ std::string TryHexToBase64(const std::string& hexInput)
     if (!(hexInput.length() == 66 || hexInput.length() == 64)) // Hexadecimal Format check
         return hexInput; // if not HEX then just return orig
 
-    Base64Error: // Output a conversion error
-    {
-        Log(("Base64Converter: AES Key \"" + hexInput + "\" is invalid").c_str());
-        return hexInput;
-    }
-
     size_t offset = (hexInput.compare(0, 2, "0x") == 0) ? 2 : 0; // trim 0x
     const char* hexData = hexInput.c_str() + offset;
     DWORD hexLen = static_cast<DWORD>(hexInput.length() - offset);
@@ -79,31 +73,38 @@ std::string TryHexToBase64(const std::string& hexInput)
     if (hexLen == 0)
         return hexInput;
 
-    DWORD binaryLen = 0; // pszString, cchString,   dwFlags,            *pbBinary, *pcbBinary, *pdwSkip, *pdwFlags
-    if (!CryptStringToBinaryA(hexData, hexLen,      CRYPT_STRING_HEXRAW, nullptr,  &binaryLen,  nullptr, nullptr)) {
-        goto Base64Error;
-    }
+    do
+    {
+        DWORD binaryLen = 0; // pszString, cchString,   dwFlags,            *pbBinary, *pcbBinary, *pdwSkip, *pdwFlags
+        if (!CryptStringToBinaryA(hexData, hexLen, CRYPT_STRING_HEXRAW, nullptr, &binaryLen, nullptr, nullptr)) {
+            break;
+        }
 
-    std::vector<BYTE> binary(binaryLen);
-    if (!CryptStringToBinaryA(hexData, hexLen, CRYPT_STRING_HEXRAW, binary.data(), &binaryLen, nullptr, nullptr)) {
-        goto Base64Error;
-    }
+        std::vector<BYTE> binary(binaryLen);
+        if (!CryptStringToBinaryA(hexData, hexLen, CRYPT_STRING_HEXRAW, binary.data(), &binaryLen, nullptr, nullptr)) {
+            break;
+        }
 
-    DWORD base64Len = 0;
-    if (!CryptBinaryToStringA(binary.data(), binaryLen, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, nullptr, &base64Len)) {
-        goto Base64Error;
-    }
+        DWORD base64Len = 0;
+        if (!CryptBinaryToStringA(binary.data(), binaryLen, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, nullptr, &base64Len)) {
+            break;
+        }
 
-    std::string base64(base64Len, '\0');
-    if (!CryptBinaryToStringA(binary.data(), binaryLen, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, base64.data(), &base64Len)) {
-        goto Base64Error;
-    }
+        std::string base64(base64Len, '\0');
+        if (!CryptBinaryToStringA(binary.data(), binaryLen, CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, base64.data(), &base64Len)) {
+            break;
+        }
 
-    if (!base64.empty() && base64.back() == L'\0') {
-        base64.pop_back();
-    }
+        if (!base64.empty() && base64.back() == L'\0') {
+            base64.pop_back();
+        }
 
-    return base64;
+        return base64;
+
+    } while (false);
+
+    Log(("Base64Converter: AES Key \"" + hexInput + "\" is invalid").c_str());
+    return hexInput;
 }
 
 bool SafeCall(FuncType* func, FString* param, bool* outResult)
