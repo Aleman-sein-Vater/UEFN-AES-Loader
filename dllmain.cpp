@@ -15,31 +15,31 @@ static HANDLE hWorkerThread = nullptr; // thread handle
 
 DWORD WINAPI WorkerThread(LPVOID)
 {
-    Log("Worker: started");
+    Utils::Log("Worker: started");
 
     unsigned long time = set.GetTimeout();
     double seconds = static_cast<double>(time) / 1000.0;
     std::stringstream wss;
     wss.precision(2);
     wss << std::fixed << "Worker: sleeping " << seconds << "s.";
-    Log(wss.str().c_str());
+    Utils::Log(wss.str());
 
     Sleep(time);
-    Log("Worker: wakey wakey, cooking...");
+    Utils::Log("Worker: wakey wakey, cooking...");
 
     auto &keys = set.GetContentKeys();
     std::string msg = "Fetched " + std::to_string(keys.size()) + " Key(s)";
-    Log(msg.c_str());
+    Utils::Log(msg.c_str());
     for (int i = 0; i < keys.size(); ++i)
     {
         std::string buf = "Loaded Key " + std::to_string(i + 1) + ": " + keys[i];
-        Log(buf.c_str());
+        Utils::Log(buf);
     }
 
     uintptr_t FunctionVA = set.ResolveFunctionAddress(); // attempt to find the function via sig or RVA
 
     if (!FunctionVA) {
-        Log("\nABORTING!\n");
+        Utils::Log("\nABORTING!\n");
         return NULL;
     }
 
@@ -47,7 +47,7 @@ DWORD WINAPI WorkerThread(LPVOID)
 
         const char* ContentKey = keys[i].c_str();
 
-        std::wstring WideKey = text_widen(keys[i]);
+        std::wstring WideKey = Utils::text_widen(keys[i]);
 
         size_t len = WideKey.size() + 1; // +1 for null terminator
         wchar_t* heapBuf = nullptr;
@@ -56,11 +56,16 @@ DWORD WINAPI WorkerThread(LPVOID)
         heapBuf = new (std::nothrow) wchar_t[len]; // allocate buffer for FString content
         if (!heapBuf)
         {
-            Log("Worker: failed to allocate heap buffer");
+            Utils::Log("Worker: failed to allocate heap buffer");
             continue;
         }
 
-        wcscpy_s(heapBuf, len, WideKey.c_str()); // write ContentKey into buffer
+        errno_t Errno = wcscpy_s(heapBuf, len, WideKey.c_str()); // write ContentKey into buffer
+        if (Errno != 0)
+        {
+            Utils::Log("Worker: wcscpy_s failed with: {0}, skipping Key: \"{1}\"", Errno, keys[i]);
+            continue;
+        }
 
         std::stringstream sstream;
         sstream << "\nRaw Buffer Bytes " << i + 1 << ": ";
@@ -71,32 +76,31 @@ DWORD WINAPI WorkerThread(LPVOID)
                 sstream << ' ';
         }
         sstream << std::endl;
-        Log(sstream.str().c_str());
+        Utils::Log(sstream.str());
 
         FString param(heapBuf, static_cast<int>(len - 1)); // construct FString
 
         FuncType* func = (FuncType*) (FunctionVA); // convert to absolute addy --> ApplyEncryptionKeyFromString's Signature
 
         sprintf_s(bufLog, "Worker: calling decryption function at 0x%p", (void*)FunctionVA);
-        Log(bufLog);
+        Utils::Log(bufLog);
 
         bool callResult = false;
-        bool ok = SafeCall(func, &param, &callResult); // SEH - wrapped call
+        bool ok = Utils::SafeCall(func, &param, &callResult); // SEH - wrapped call
 
         if (!ok)
         {
-            Log("Worker: exception during decryption function call! (check RVA & ModuleName)"); // Corrupted FString?
+            Utils::Log("Worker: exception during decryption function call! (check RVA & ModuleName)"); // Corrupted FString?
         }
         else
         {
-            sprintf_s(bufLog, "Worker: decryption function call returned = %s", callResult ? "true" : "false");
-            Log(bufLog);
+            Utils::Log("Worker: decryption function call returned = {}", callResult ? "true" : "false");
         }
 
         delete[] heapBuf;
     }
 
-    Log("Worker: exiting...");
+    Utils::Log("Worker: exiting...");
     return 0;
 }
 
@@ -106,8 +110,8 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID)
     {
         case DLL_PROCESS_ATTACH:
         {
-            ClearLogFile();
-            Log("// Only specify the RVA or a Signature. Do not provide both\n\nDLLMain: PROCESS_ATTACH\n");
+            Utils::ClearLogFile();
+            Utils::Log("// Only specify the RVA or a Signature. Do not provide both\n\nDLLMain: PROCESS_ATTACH\n");
 
             DisableThreadLibraryCalls(hModule); // TLS Callback
 
@@ -117,7 +121,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID)
 
                     if (!set.Load())
                     {
-                        Log("\nABORTING: Settings failed to load!\n");
+                        Utils::Log("\nABORTING: Settings failed to load!\n");
                         return 0;
                     }
 
@@ -126,17 +130,17 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID)
 
             if (hWorkerThread)
             {
-                Log("DLLMain: Worker thread created");
+                Utils::Log("DLLMain: Worker thread created");
             }
             else
             {
-                Log("DLLMain: Failed to create worker thread");
+                Utils::Log("DLLMain: Failed to create worker thread");
             }
             break;
         }
         case DLL_PROCESS_DETACH:
         {
-            Log("DLLMain: PROCESS_DETACH");
+            Utils::Log("DLLMain: PROCESS_DETACH");
             if (hWorkerThread)
             {
                 WaitForSingleObject(hWorkerThread, 2000);

@@ -85,7 +85,9 @@ bool Settings::ValidateIni()
 
 void Settings::CreateDefaultIni()
 {
-    EnsureIniPath();
+    EnsureIniPath(); // make sure the Ini Path is correct
+
+    Utils::Log("\nINI is corrupted! applying defaults..\n");
 
     std::string defaultData =
         "[Settings]\r\n"
@@ -105,8 +107,6 @@ void Settings::CreateDefaultIni()
         WriteFile(h, defaultData.c_str(), static_cast<DWORD>(defaultData.size()), nullptr, nullptr);
         CloseHandle(h);
     }
-
-    Log("\nINI is corrupted! applying defaults..\n");
 }
 
 uintptr_t Settings::ResolveFunctionAddress()
@@ -115,13 +115,11 @@ uintptr_t Settings::ResolveFunctionAddress()
     uintptr_t ModuleBase = GetModuleBase(moduleName.c_str());
     if (!ModuleBase)
     {
-        Log(("\nResolver: module \"" + moduleName + "\"doesn't exist").c_str());
+        Utils::Log("\nResolver: module {} moduleName doesn't exist", moduleName);
         return 0;
     }
 
-    char temp[256];
-    sprintf_s(temp, "\nResolver: module '%s' loaded @ 0x%p", moduleName.c_str(), (void*)ModuleBase);
-    Log(temp);
+    Utils::Log("\nResolver: module \"{}\" loaded @ 0x{:p}", moduleName, (void*)ModuleBase);
 
     bool hasRVA = (functionRVA != 0);
     bool hasSig = (!signature.empty() && signature != "??"); // default / null values
@@ -130,17 +128,16 @@ uintptr_t Settings::ResolveFunctionAddress()
     {
         uintptr_t candidate = ModuleBase + functionRVA;
 
-        sprintf_s(temp, "Resolver: trying RVA @ 0x%p", (void*)candidate);
-        Log(temp);
+        Utils::Log("Resolver: trying RVA @ 0x{:p}", (void*)candidate);
 
         if (candidate > ModuleBase)
         {
             functionVA = candidate;
-            Log("Resolver: RVA valid -> using RVA result");
+            Utils::Log("Resolver: RVA valid -> using RVA result");
             return functionVA;
         }
 
-        Log("Resolver: invalid RVA");
+        Utils::Log("Resolver: invalid RVA");
         return 0;
     }
 
@@ -148,16 +145,15 @@ uintptr_t Settings::ResolveFunctionAddress()
     {
         functionVA = FindPattern(moduleName, signature);
         if (functionVA) {
-            sprintf_s(temp, "Resolver: pattern found @ 0x%p", (void*)functionVA);
-            Log(temp);
+            Utils::Log("Resolver: pattern found @ {:p}", (void*)functionVA);
             return functionVA;
         }
 
-        Log("Resolver: signature scan failed");
+        Utils::Log("Resolver: signature scan failed");
         return 0;
     }
 
-    Log("Resolver: failed to resolve VA, provide RVA or Signature");
+    Utils::Log("Resolver: failed to resolve VA, provide RVA or Signature");
     return 0;
 }
 
@@ -190,9 +186,9 @@ bool Settings::Load()
             else
                 functionRVA = static_cast<uintptr_t>(std::stoull(s, &idx, 0));
         }
-        catch (...)
+        catch (const std::exception& e)
         {
-            // keep default on parse failure
+            Utils::Log("Error while Loading FunctionRVA: {}", e.what());
         }
     }
 
@@ -209,9 +205,9 @@ bool Settings::Load()
         {
             timeout = std::stoul(timeoutBuf);
         }
-        catch (...)
+        catch (const std::exception& e)
         {
-            // keep default on parse failure
+            Utils::Log("Error while Loading Timeout: {}", e.what());
         }
     }
 
@@ -229,7 +225,7 @@ bool Settings::Load()
                 std::string GuidKeyPair = eq + 1; // move past the = and read until '\0'
                 auto pos = GuidKeyPair.find(L':');
                 if (pos == std::string::npos) {
-                    Log(("ContentKey: Wrong format on \"" + GuidKeyPair + "\"").c_str());
+                    Utils::Log("ContentKey: Wrong format on \"{}\"", GuidKeyPair);
                     p += strlen(p) + 1;
                     continue;
                 }
@@ -247,9 +243,9 @@ bool Settings::Load()
                     std::transform(Guid.begin(), Guid.end(), Guid.begin(), ::toupper); // uppercase the GUID: 4f322681-e6f3-4d13-bf74-bf3244b27787 --> 4F322681E6F34D13BF74BF3244B27787
                 }
                 else
-                    Log(("ContentKey: Guid in \"" + GuidKeyPair + "\" is empty").c_str());
+                    Utils::Log("ContentKey: Guid in \"{}\" is empty", GuidKeyPair);
 
-                Key = TryHexToBase64(Key); // attempts to convert HEX AES to Base64, if already Base64 it will be untouched
+                Key = Utils::TryHexToBase64(Key); // attempts to convert HEX AES to Base64, if already Base64 it will be untouched
                 GuidKeyPair = Guid + ":" + Key;
                 ContentKeys.push_back(GuidKeyPair);
             }

@@ -9,7 +9,7 @@
 #include "Utils/Utils.h"
 #include "Settings/Settings.h"
 
-uintptr_t GetModuleBase(const char* ModuleName)
+uintptr_t Utils::GetModuleBase(const char* ModuleName)
 {
     HMODULE hMod = nullptr;
     if (GetModuleHandleExA(0, ModuleName, &hMod))
@@ -19,7 +19,7 @@ uintptr_t GetModuleBase(const char* ModuleName)
     return NULL; // module doesnt exist..?
 }
 
-void ClearLogFile()
+void Utils::ClearLogFile()
 {                                                                   // CREATE_ALWAYS = clear
     HANDLE hFile = CreateFileA(logFileName, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 
@@ -27,18 +27,22 @@ void ClearLogFile()
         CloseHandle(hFile);
 }
 
-void Log(const char* msg)
+void Utils::Log(const std::string& msg)
 {
     HANDLE hFile = CreateFileA(logFileName, FILE_APPEND_DATA, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (hFile == INVALID_HANDLE_VALUE) return;
+    if (hFile == INVALID_HANDLE_VALUE)
+    {
+        CloseHandle(hFile);
+        return;
+    }
     DWORD written = 0;
-    WriteFile(hFile, msg, static_cast<DWORD>(strlen(msg)), &written, nullptr);
+    WriteFile(hFile, msg.c_str(), static_cast<DWORD>(strlen(msg.c_str())), &written, nullptr);
     WriteFile(hFile, "\r\n", 2, &written, nullptr);
     CloseHandle(hFile);
 }
 
 // from the goat: https://github.com/nathan-baggs/ufps/blob/main/src/utils/text_utils.cpp#L13
-auto text_widen(const std::string& str) -> std::wstring
+auto Utils::text_widen(const std::string& str) -> std::wstring
 {
     if (str.empty())
         return {};
@@ -61,7 +65,7 @@ auto text_widen(const std::string& str) -> std::wstring
     return wide_str;
 }
 
-std::string TryHexToBase64(const std::string& hexInput)
+std::string Utils::TryHexToBase64(const std::string& hexInput)
 {
     if (!(hexInput.length() == 66 || hexInput.length() == 64)) // Hexadecimal Format check
         return hexInput; // if not HEX then just return orig
@@ -107,7 +111,7 @@ std::string TryHexToBase64(const std::string& hexInput)
     return hexInput;
 }
 
-bool SafeCall(FuncType* func, FString* param, bool* outResult)
+bool Utils::SafeCall(FuncType* func, FString* param, bool* outResult)
 {
     bool FuncResult = false;
 
