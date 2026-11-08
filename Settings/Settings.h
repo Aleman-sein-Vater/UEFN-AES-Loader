@@ -15,18 +15,19 @@ public:
 
     bool Load();
 
+    bool TryResolveAddKeyAddress();
+    const uintptr_t GetAddKeyAddy() const { return AddKeyVA; }
+    const uintptr_t GetGetEncKeyAddy() const { return GetEncKeyVA; }
+    unsigned long GetTimeout() const { return Timeout; }
     const std::vector<std::string>& GetContentKeys() const { return ContentKeys; }
-    uintptr_t ResolveFunctionAddress();
-    unsigned long GetTimeout() const { return timeout; }
 
 private:
-    std::string iniPath;
+    std::string IniPath;
+    std::string ModuleName = "unrealeditorfortnite-engine-win64-shipping.dll";
+    uintptr_t AddKeyRVA = 0x0, AddKeyVA = 0x0, GetEncKeyVA = 0x0;
+    std::string AddKeyPattern = "", GetEncKeyExport = "?Get@FEncryptionKeyManager@UE@@SAAEAV12@XZ";
+    unsigned long Timeout = 10000; // sleep time in ms
     std::vector<std::string> ContentKeys;
-    std::string moduleName = "unrealeditorfortnite-engine-win64-shipping.dll";
-    uintptr_t functionRVA = 0x0;
-    std::string signature = "";
-    uintptr_t functionVA = 0x0;
-    unsigned long timeout = 10000; // sleep time
 
     void EnsureIniPath();
     void CreateDefaultIni();

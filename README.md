@@ -1,8 +1,11 @@
 # UEFN AES Loader
-A UEFN DLL that calls the [ApplyEncryptionKeyFromString](https://github.com/EpicGames/UnrealEngine/blob/684b4c133ed87e8050d1fdaa287242f0fe2c1153/Engine/Source/Runtime/Experimental/IoStore/OnDemand/Private/OnDemandConfig.cpp#L65) function to load provided AES Keys
+A UEFN DLL that emulates the [ApplyEncryptionKeyFromString](https://github.com/EpicGames/UnrealEngine/blob/684b4c133ed87e8050d1fdaa287242f0fe2c1153/Engine/Source/Runtime/Experimental/IoStore/OnDemand/Private/OnDemandConfig.cpp#L65) function to load provided AES Keys
 
 ------------------------
 ## How To Use
+- This version is intended for `43.00-CL-59596594` and future UEFN version, please use version `1.1.3` of this DLL if you want to use it for earlier UEFN versions
+    - Ensure you're looking at the `Finding the Function` of `1.1.3`!
+
 - Either download the DLL or compile it from source
 
 - Make sure the DLL is called `amfrt64.dll` and is placed inside your `..\Binaries\Win64` directory
@@ -33,24 +36,27 @@ A UEFN DLL that calls the [ApplyEncryptionKeyFromString](https://github.com/Epic
         - Is the **RVA** valid?
         - Is the **Signature** correct?
         - Is the **Timeout** long enough?
+        - Did the **Timeout** cause the decryption to be too late?
         - Did you rename the DLL to `amfrt64.dll`?
 
 -----------------------
 ## Finding the Function
 ### I recommend using [x64dbg](https://x64dbg.com) for this
+
 1. Open your **patched UEFN** and attach **x64dbg** to the running process
   
-2. **Search For** --> **All Modules** --> **String references**
+2. Download [AutoRTFM-Skipper.dp64](https://github.com/Aleman-sein-Vater/UEFN-AES-Loader/raw/master/plugins/AutoRTFM-Skipper.dp64) and place it inside your `x64dbg\release\x64\plugins` folder
 
-3. After the search reaches 100%, search for `Ias.EncryptionKey=` and go to it
+3. **Search For** --> **All Modules** --> **String references**
 
-4. Now you _should_ be here:
+4. After the search reaches 100%, search for `Ias.EncryptionKey=` and go to it
+
+5. Scroll down a bit until you are roughly here:
 <div align="center">
-  <img width="1332" height="334" alt="inside x64dbg showcasing the function" src="https://github.com/user-attachments/assets/7351982e-5e51-46ad-9191-882769210541" />
+  <img width="1479" height="502" alt="Inside x64dbg showcasing the function" src="https://github.com/user-attachments/assets/598e9e33-3f91-4317-9173-4f282a40c7c3" />
 </div>
 
-5. Find the **exact same highlighted** CALL instruction and double-click it
+6. Find the **exact same highlighted** CALL instruction and **double-click it**
     - The surrounding instructions may differ between versions, but the highlighted CALL should still appear
 
-
-6. And you're done! Now just right-click on the function's first instruction and copy the RVA (or generate a signature)
+7. And you're done! Now just right-click on the function's first instruction (ignore the `dq A2737FF92A26A8C0`) and copy the RVA (or generate a signature)

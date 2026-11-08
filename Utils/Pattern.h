@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <windows.h>
 #include <vector>
 #include <string>
@@ -47,26 +47,36 @@ namespace PatternScanner
         return bytes;
     }
 
-    inline uintptr_t GetModuleBase(const std::string& moduleName)
+    inline uintptr_t GetModuleBase(const std::string& ModuleName)
     {
-        return (uintptr_t)GetModuleHandleA(moduleName.c_str());
+        return (uintptr_t)GetModuleHandleA(ModuleName.c_str());
     }
 
-    inline size_t GetModuleSize(const std::string& moduleName)
+    inline size_t GetModuleSize(const std::string& ModuleName)
     {
-        auto base = (PBYTE)GetModuleHandleA(moduleName.c_str());
+        auto base = (PBYTE)GetModuleHandleA(ModuleName.c_str());
+        if (!base)
+            return 0;
         auto nt = (PIMAGE_NT_HEADERS)(base + ((PIMAGE_DOS_HEADER)base)->e_lfanew);
         return nt->OptionalHeader.SizeOfImage;
     }
 
     template <typename T = uintptr_t>
-    T FindPattern(const std::string& moduleName, const std::string& pattern)
+    T FindPattern(const std::string& ModuleName, const std::string& pattern)
     {
-        uintptr_t base = GetModuleBase(moduleName);
-        size_t size = GetModuleSize(moduleName);
+        uintptr_t base = GetModuleBase(ModuleName);
+        size_t size = GetModuleSize(ModuleName);
 
         auto patternBytes = PatternToBytes(pattern);
         size_t patternLength = patternBytes.size();
+
+        if (!base || !size || patternLength == 0 || size < patternLength)
+        {
+            if constexpr (std::is_pointer<T>::value)
+                return nullptr;
+            else
+                return 0;
+        }
 
         for (size_t i = 0; i < size - patternLength; i++)
         {

@@ -1,22 +1,15 @@
-#pragma comment(lib, "crypt32.lib")
 #include "pch.h"
-#include <comdef.h>
+#pragma comment(lib, "crypt32.lib")
 #include <windows.h>
 #include <wincrypt.h>
 #include <string>
 #include <vector>
-#include <sstream>
 #include "Utils/Utils.h"
 #include "Settings/Settings.h"
 
 uintptr_t Utils::GetModuleBase(const char* ModuleName)
 {
-    HMODULE hMod = nullptr;
-    if (GetModuleHandleExA(0, ModuleName, &hMod))
-    {
-        return reinterpret_cast<uintptr_t>(hMod);
-    }
-    return NULL; // module doesnt exist..?
+    return reinterpret_cast<uintptr_t>(GetModuleHandleA(ModuleName));
 }
 
 void Utils::ClearLogFile()
@@ -32,11 +25,10 @@ void Utils::Log(const std::string& msg)
     HANDLE hFile = CreateFileA(logFileName, FILE_APPEND_DATA, FILE_SHARE_READ, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (hFile == INVALID_HANDLE_VALUE)
     {
-        CloseHandle(hFile);
         return;
     }
     DWORD written = 0;
-    WriteFile(hFile, msg.c_str(), static_cast<DWORD>(strlen(msg.c_str())), &written, nullptr);
+    WriteFile(hFile, msg.c_str(), static_cast<DWORD>(msg.size()), &written, nullptr);
     WriteFile(hFile, "\r\n", 2, &written, nullptr);
     CloseHandle(hFile);
 }
@@ -99,7 +91,7 @@ std::string Utils::TryHexToBase64(const std::string& hexInput)
             break;
         }
 
-        if (!base64.empty() && base64.back() == L'\0') {
+        if (!base64.empty() && base64.back() == '\0') {
             base64.pop_back();
         }
 
@@ -111,20 +103,126 @@ std::string Utils::TryHexToBase64(const std::string& hexInput)
     return hexInput;
 }
 
-bool Utils::SafeCall(FuncType* func, FString* param, bool* outResult)
+const void* Utils::GetAddressOfExportedFunction(const char* SearchModuleName, const char* SearchFunctionName)
 {
-    bool FuncResult = false;
+    /* Get the module the function was exported from */
+    const uintptr_t ModuleBase = GetModuleBase(SearchModuleName);
+    const IMAGE_DOS_HEADER* DosHeader = reinterpret_cast<PIMAGE_DOS_HEADER>(ModuleBase);
 
-    __try // structured exception handler
+    if (ModuleBase == 0x0 || DosHeader->e_magic != IMAGE_DOS_SIGNATURE)
+        return nullptr;
+
+    const IMAGE_NT_HEADERS* NtHeader = reinterpret_cast<PIMAGE_NT_HEADERS>(ModuleBase + DosHeader->e_lfanew);
+
+    if (!NtHeader)
+        return nullptr;
+
+    const DWORD ExportRVA = NtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+    if (!ExportRVA)
+        return nullptr;
+
+    /* Get the table of functions exported by the module */
+    const IMAGE_EXPORT_DIRECTORY* ExportTable = reinterpret_cast<PIMAGE_EXPORT_DIRECTORY>(ModuleBase + ExportRVA);
+
+    const DWORD* NameOffsets = reinterpret_cast<const DWORD*>(ModuleBase + ExportTable->AddressOfNames);
+    const DWORD* FunctionOffsets = reinterpret_cast<const DWORD*>(ModuleBase + ExportTable->AddressOfFunctions);
+
+    const WORD* Ordinals = reinterpret_cast<const WORD*>(ModuleBase + ExportTable->AddressOfNameOrdinals);
+
+    /* Iterate all names and return the function if the name matches what we're looking for */
+    for (DWORD i = 0; i < ExportTable->NumberOfNames; i++)
     {
-        FuncResult = func(*param);
+        const WORD NameIndex = Ordinals[i];
+        const char* Name = reinterpret_cast<const char*>(ModuleBase + NameOffsets[i]);
+
+        if (strcmp(SearchFunctionName, Name) == 0)
+            return reinterpret_cast<void*>(ModuleBase + FunctionOffsets[NameIndex]);
     }
-    __except (EXCEPTION_EXECUTE_HANDLER)
+
+    return nullptr;
+}
+
+static bool ParseEncryptionKeyParam(const FString& Param, FGuid& OutKeyGuid, FAES::FAESKey& OutKey)
+{
+    bool bSuccess = false;
+    TArray<FString> Tokens;
+    Param.ParseIntoArray(Tokens, TEXT(":"), true);
+    if (Tokens.Num() == 2)
     {
-        *outResult = false;
+        TArray<uint8> KeyBytes;
+        if (!FGuid::Parse(Tokens[0], OutKeyGuid) || !OutKeyGuid.IsValid())
+        {
+            Utils::Log("Parser: Invalid GUID \"{}\"", Tokens[0].ToString());
+        }
+        else if (!FBase64::Decode(Tokens[1], KeyBytes) || KeyBytes.Num() != FAES::FAESKey::KeySize)
+        {
+            Utils::Log("Parser: Invalid AES key (decoded {} bytes, expected {})", KeyBytes.Num(), FAES::FAESKey::KeySize);
+        }
+        else
+        {
+            std::memcpy(OutKey.Key, KeyBytes.GetData(), FAES::FAESKey::KeySize);
+            bSuccess = true;
+        }
+        KeyBytes.FreeArray();
+    }
+    else
+    {
+        Utils::Log("Parser: Invalid format (expected GUID:AES, got {} token(s))", Tokens.Num());
+    }
+
+    for (int32 i = 0; i < Tokens.Num(); ++i)
+    {
+        Tokens[i].FreeArray();
+    }
+    Tokens.FreeArray();
+    return bSuccess;
+}
+
+static bool InvokeAddKeySEH(GetEncryptionKeyManagerType* GetMgr, AddKeyType* AddKey, const FGuid& KeyGuid, const FAES::FAESKey& Key, FEncryptionKeyManager** OutMgr, DWORD* OutExceptionCode)
+{
+    __try // Windows SEH if the addresses are wrong, so we dont crash
+    {
+        if (GetMgr && AddKey)
+        {
+            FEncryptionKeyManager* Mgr = GetMgr();
+            if (OutMgr) *OutMgr = Mgr;
+            if (!Mgr) return false;
+
+            AddKey(Mgr, KeyGuid, Key);
+            return true;
+        }
+    }
+    __except (*OutExceptionCode = GetExceptionCode(), EXCEPTION_EXECUTE_HANDLER) {}
+    return false;
+}
+
+bool Utils::SafeCall(const Settings& Set, FString* param)
+{
+    FGuid KeyGuid;
+    FAES::FAESKey Key;
+    if (!ParseEncryptionKeyParam(*param, KeyGuid, Key))
+    {
         return false;
     }
 
-    *outResult = FuncResult; // no crashy, return result
+    FString GuidStr = KeyGuid.ToString(EGuidFormats::DigitsWithHyphens);
+    Utils::Log("SafeCall: Parsed GUID = {}", GuidStr.ToString());
+    GuidStr.FreeArray();
+
+    auto* GetMgr = reinterpret_cast<GetEncryptionKeyManagerType*>(Set.GetGetEncKeyAddy());
+    auto* AddKey = reinterpret_cast<AddKeyType*>(Set.GetAddKeyAddy());
+
+    FEncryptionKeyManager* Mgr = nullptr;
+    DWORD ExceptionCode = 0;
+    if (!InvokeAddKeySEH(GetMgr, AddKey, KeyGuid, Key, &Mgr, &ExceptionCode))
+    {
+        if (ExceptionCode != 0)
+            Utils::Log("SafeCall: SEH exception 0x{:08X} (Mgr @ {:p})", ExceptionCode, (void*)Mgr);
+        else
+            Utils::Log("SafeCall: FEncryptionKeyManager::Get() returned nullptr");
+        return false;
+    }
+
+    Utils::Log("SafeCall: Added key to FEncryptionKeyManager @ {:p}", (void*)Mgr);
     return true;
 }
